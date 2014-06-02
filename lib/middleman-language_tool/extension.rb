@@ -1,21 +1,25 @@
-require 'middleman-spellcheck/spellchecker'
 require 'nokogiri'
+require 'language_tool'
 
 module Middleman
-  module Spellcheck
-    class SpellcheckExtension < Extension
+  module LanguageTool
+    class LanguageToolExtension < Extension
       REJECTED_EXTS = %w(.css .js .coffee)
       option :page, "/*", "Run only pages that match the regex through the spellchecker"
       option :tags, [], "Run spellcheck only on some tags from the output"
       option :allow, [], "Allow specific words to be misspelled"
 
       def after_build(builder)
+        language_tool = ::LanguageTool::Process.new
+        language_tool.start!
+        spellchecker = ::LanguageTool::ErrorParser.new(language_tool)
+
         filtered = filter_resources(app, options.page)
         total_misspelled = []
 
         filtered.each do |resource|
           builder.say_status :spellcheck, "Running spell checker for #{resource.url}", :blue
-          current_misspelled = run_check(select_content(resource))
+          current_misspelled = run_check(spellchecker, select_content(resource))
           current_misspelled.each do |misspell|
             builder.say_status :misspell, error_message(misspell), :red
           end
@@ -59,10 +63,11 @@ module Middleman
                              .reject { |resource| REJECTED_EXTS.include? resource.ext }
       end
 
-      def run_check(text, dictionary="en")
-        results = Spellchecker.check(text, dictionary)
-        results = exclude_allowed(results)
-        results.reject { |entry| entry[:correct] }
+      def run_check(spellchecker, text)
+        errors = spellchecker.find_errors(text)
+        errors.reject { |e| e.ruleId == "WHITESPACE_RULE" }
+        #results = exclude_allowed(results)
+        #results.reject { |entry| entry[:correct] }
       end
 
       def exclude_allowed(results)
@@ -79,7 +84,12 @@ module Middleman
       end
 
       def error_message(misspell)
-        "The word '#{misspell[:word]}' is misspelled"
+        "Category: #{misspell.category}\n" \
+        "Message: #{misspell.msg}\n" \
+        "Context: #{misspell.context}\n" \
+        "Replacements: #{misspell.replacements.split('#').join(' ')}\n" \
+
+        #"The word '#{misspell[:word]}' is misspelled"
       end
     end
   end

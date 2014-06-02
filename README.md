@@ -1,4 +1,4 @@
-# Middleman-Spellchecker
+# Middleman-LanguageTooler
 
 Run a spell checker job after the app is built. Requires 'aspell'.
 

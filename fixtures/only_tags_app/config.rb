@@ -1,1 +1,0 @@
-activate :spellcheck, tags: :p
